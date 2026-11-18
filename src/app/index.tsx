@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { VistaPrevia } from '@/components/VistaPrevia';
+import { useIdioma } from '@/i18n/IdiomaContext';
 import {
   aCm,
   convertirTexto,
@@ -22,6 +23,7 @@ const COLOR_ARTE = '#c0392b';
 const ALTO_VISTA = 280;
 
 export default function Calculadora() {
+  const { t } = useIdioma();
   const [unidad, setUnidad] = useState<Unidad>('cm');
   const [modo, setModo] = useState<Modo>('margen');
   const [arteAncho, setArteAncho] = useState('30');
@@ -75,7 +77,7 @@ export default function Calculadora() {
               altoDisponible={ALTO_VISTA - 24}
             />
           ) : (
-            <Text style={styles.ayuda}>Escribe las medidas para ver la vista previa</Text>
+            <Text style={styles.ayuda}>{t.ayudaVista}</Text>
           )}
         </View>
 
@@ -84,22 +86,22 @@ export default function Calculadora() {
           <View style={[styles.resultado, arteNoCabe && styles.resultadoError]}>
             {modo === 'margen' ? (
               <>
-                <Text style={styles.resultadoTitulo}>Busca un marco de</Text>
+                <Text style={styles.resultadoTitulo}>{t.buscaMarco}</Text>
                 <Text style={styles.resultadoValor}>
                   {formatear(marco.ancho, unidad)} × {formatear(marco.alto, unidad)}
                 </Text>
               </>
             ) : (
               <>
-                <Text style={styles.resultadoTitulo}>Margen visible por lado</Text>
+                <Text style={styles.resultadoTitulo}>{t.margenPorLado}</Text>
                 <Text style={styles.resultadoValor}>
-                  Ancho: {formatear(margenes.ancho, unidad)}
-                  {'\n'}Alto: {formatear(margenes.alto, unidad)}
+                  {t.ancho}: {formatear(margenes.ancho, unidad)}
+                  {'\n'}{t.alto}: {formatear(margenes.alto, unidad)}
                 </Text>
               </>
             )}
-            {arteNoCabe && <Text style={styles.error}>El arte no cabe: el marco taparía parte de la obra.</Text>}
-            <Text style={styles.nota}>Incluye {formatear(SOLAPA_CM, unidad)} por lado que tapa el borde del marco.</Text>
+            {arteNoCabe && <Text style={styles.error}>{t.noCabe}</Text>}
+            <Text style={styles.nota}>{t.notaSolapa(formatear(SOLAPA_CM, unidad))}</Text>
           </View>
         )}
 
@@ -107,23 +109,23 @@ export default function Calculadora() {
         <Segmentos
           opciones={[
             { valor: 'cm', texto: 'cm' },
-            { valor: 'in', texto: 'pulgadas' },
+            { valor: 'in', texto: t.pulgadas },
           ]}
           valor={unidad}
           alCambiar={cambiarUnidad}
         />
 
-        <Text style={styles.seccion}>Arte</Text>
+        <Text style={styles.seccion}>{t.arte}</Text>
         <View style={styles.fila}>
-          <Campo etiqueta={`Ancho (${unidad})`} valor={arteAncho} alCambiar={setArteAncho} />
-          <Campo etiqueta={`Alto (${unidad})`} valor={arteAlto} alCambiar={setArteAlto} />
+          <Campo etiqueta={`${t.ancho} (${unidad})`} valor={arteAncho} alCambiar={setArteAncho} />
+          <Campo etiqueta={`${t.alto} (${unidad})`} valor={arteAlto} alCambiar={setArteAlto} />
         </View>
 
-        <Text style={styles.seccion}>Modo</Text>
+        <Text style={styles.seccion}>{t.modo}</Text>
         <Segmentos
           opciones={[
-            { valor: 'margen', texto: 'Quiero este margen' },
-            { valor: 'marco', texto: 'Encontré este marco' },
+            { valor: 'margen', texto: t.modoMargen },
+            { valor: 'marco', texto: t.modoMarco },
           ]}
           valor={modo}
           alCambiar={setModo}
@@ -131,12 +133,12 @@ export default function Calculadora() {
 
         {modo === 'margen' ? (
           <View style={styles.fila}>
-            <Campo etiqueta={`Margen visible (${unidad})`} valor={margen} alCambiar={setMargen} />
+            <Campo etiqueta={`${t.margenVisible} (${unidad})`} valor={margen} alCambiar={setMargen} />
           </View>
         ) : (
           <View style={styles.fila}>
-            <Campo etiqueta={`Marco ancho (${unidad})`} valor={marcoAncho} alCambiar={setMarcoAncho} />
-            <Campo etiqueta={`Marco alto (${unidad})`} valor={marcoAlto} alCambiar={setMarcoAlto} />
+            <Campo etiqueta={`${t.marcoAncho} (${unidad})`} valor={marcoAncho} alCambiar={setMarcoAncho} />
+            <Campo etiqueta={`${t.marcoAlto} (${unidad})`} valor={marcoAlto} alCambiar={setMarcoAlto} />
           </View>
         )}
       </View>
