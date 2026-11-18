@@ -1,98 +1,217 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { VistaPrevia } from '@/components/VistaPrevia';
+import {
+  aCm,
+  convertirTexto,
+  esPositiva,
+  formatear,
+  leerNumero,
+  marcoParaMargen,
+  margenParaMarco,
+  Medida,
+  noCabe,
+  SOLAPA_CM,
+  Unidad,
+} from '@/lib/marco';
 
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
+type Modo = 'margen' | 'marco';
+
+const COLOR_ARTE = '#c0392b';
+const ALTO_VISTA = 280;
+
+export default function Calculadora() {
+  const [unidad, setUnidad] = useState<Unidad>('cm');
+  const [modo, setModo] = useState<Modo>('margen');
+  const [arteAncho, setArteAncho] = useState('30');
+  const [arteAlto, setArteAlto] = useState('40');
+  const [margen, setMargen] = useState('5');
+  const [marcoAncho, setMarcoAncho] = useState('40');
+  const [marcoAlto, setMarcoAlto] = useState('50');
+  const [anchoVista, setAnchoVista] = useState(0);
+
+  // Al cambiar cm ↔ in, convertimos lo que ya está escrito.
+  const cambiarUnidad = (nueva: Unidad) => {
+    if (nueva === unidad) return;
+    const conv = (t: string) => convertirTexto(t, unidad, nueva);
+    setArteAncho(conv);
+    setArteAlto(conv);
+    setMargen(conv);
+    setMarcoAncho(conv);
+    setMarcoAlto(conv);
+    setUnidad(nueva);
+  };
+
+  const cm = (t: string) => aCm(leerNumero(t), unidad);
+  const arte: Medida = { ancho: cm(arteAncho), alto: cm(arteAlto) };
+
+  let marco: Medida;
+  let margenes: Medida;
+  if (modo === 'margen') {
+    const m = cm(margen);
+    marco = marcoParaMargen(arte, m);
+    margenes = { ancho: m, alto: m };
+  } else {
+    marco = { ancho: cm(marcoAncho), alto: cm(marcoAlto) };
+    margenes = margenParaMarco(arte, marco);
   }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
+
+  const datosValidos = esPositiva(arte) && esPositiva(marco) && Number.isFinite(margenes.ancho);
+  const arteNoCabe = datosValidos && noCabe(margenes);
+
   return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
+    <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      <View style={styles.contenido}>
+        {/* Vista previa */}
+        <View style={styles.vista} onLayout={(e) => setAnchoVista(e.nativeEvent.layout.width)}>
+          {datosValidos && anchoVista > 0 ? (
+            <VistaPrevia
+              arte={arte}
+              marco={marco}
+              solapa={SOLAPA_CM}
+              colorArte={COLOR_ARTE}
+              anchoDisponible={anchoVista - 24}
+              altoDisponible={ALTO_VISTA - 24}
+            />
+          ) : (
+            <Text style={styles.ayuda}>Escribe las medidas para ver la vista previa</Text>
+          )}
+        </View>
+
+        {/* Resultado */}
+        {datosValidos && (
+          <View style={[styles.resultado, arteNoCabe && styles.resultadoError]}>
+            {modo === 'margen' ? (
+              <>
+                <Text style={styles.resultadoTitulo}>Busca un marco de</Text>
+                <Text style={styles.resultadoValor}>
+                  {formatear(marco.ancho, unidad)} × {formatear(marco.alto, unidad)}
+                </Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.resultadoTitulo}>Margen visible por lado</Text>
+                <Text style={styles.resultadoValor}>
+                  Ancho: {formatear(margenes.ancho, unidad)}
+                  {'\n'}Alto: {formatear(margenes.alto, unidad)}
+                </Text>
+              </>
+            )}
+            {arteNoCabe && <Text style={styles.error}>El arte no cabe: el marco taparía parte de la obra.</Text>}
+            <Text style={styles.nota}>Incluye {formatear(SOLAPA_CM, unidad)} por lado que tapa el borde del marco.</Text>
+          </View>
+        )}
+
+        {/* Controles */}
+        <Segmentos
+          opciones={[
+            { valor: 'cm', texto: 'cm' },
+            { valor: 'in', texto: 'pulgadas' },
+          ]}
+          valor={unidad}
+          alCambiar={cambiarUnidad}
+        />
+
+        <Text style={styles.seccion}>Arte</Text>
+        <View style={styles.fila}>
+          <Campo etiqueta={`Ancho (${unidad})`} valor={arteAncho} alCambiar={setArteAncho} />
+          <Campo etiqueta={`Alto (${unidad})`} valor={arteAlto} alCambiar={setArteAlto} />
+        </View>
+
+        <Text style={styles.seccion}>Modo</Text>
+        <Segmentos
+          opciones={[
+            { valor: 'margen', texto: 'Quiero este margen' },
+            { valor: 'marco', texto: 'Encontré este marco' },
+          ]}
+          valor={modo}
+          alCambiar={setModo}
+        />
+
+        {modo === 'margen' ? (
+          <View style={styles.fila}>
+            <Campo etiqueta={`Margen visible (${unidad})`} valor={margen} alCambiar={setMargen} />
+          </View>
+        ) : (
+          <View style={styles.fila}>
+            <Campo etiqueta={`Marco ancho (${unidad})`} valor={marcoAncho} alCambiar={setMarcoAncho} />
+            <Campo etiqueta={`Marco alto (${unidad})`} valor={marcoAlto} alCambiar={setMarcoAlto} />
+          </View>
+        )}
+      </View>
+    </ScrollView>
   );
 }
 
-export default function HomeScreen() {
+// ---------- Componentes pequeños ----------
+
+function Campo({ etiqueta, valor, alCambiar }: { etiqueta: string; valor: string; alCambiar: (t: string) => void }) {
   return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
+    <View style={styles.campo}>
+      <Text style={styles.etiqueta}>{etiqueta}</Text>
+      <TextInput
+        style={styles.input}
+        value={valor}
+        onChangeText={alCambiar}
+        keyboardType="decimal-pad"
+        inputMode="decimal"
+        selectTextOnFocus
+      />
+    </View>
+  );
+}
 
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
-
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
-
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
+function Segmentos<T extends string>({
+  opciones,
+  valor,
+  alCambiar,
+}: {
+  opciones: { valor: T; texto: string }[];
+  valor: T;
+  alCambiar: (v: T) => void;
+}) {
+  return (
+    <View style={styles.segmentos}>
+      {opciones.map((o) => (
+        <Pressable
+          key={o.valor}
+          onPress={() => alCambiar(o.valor)}
+          style={[styles.segmento, o.valor === valor && styles.segmentoActivo]}
+        >
+          <Text style={[styles.segmentoTexto, o.valor === valor && styles.segmentoTextoActivo]}>{o.texto}</Text>
+        </Pressable>
+      ))}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
-  },
-  heroSection: {
+  scroll: { padding: 16, alignItems: 'center' },
+  contenido: { width: '100%', maxWidth: 480, gap: 12 },
+  vista: {
+    height: ALTO_VISTA,
+    backgroundColor: '#e9e6e1',
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
   },
-  title: {
-    textAlign: 'center',
-  },
-  code: {
-    textTransform: 'uppercase',
-  },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
-  },
+  ayuda: { color: '#777' },
+  resultado: { backgroundColor: '#eef6ee', borderRadius: 12, padding: 14, gap: 4 },
+  resultadoError: { backgroundColor: '#fdecea' },
+  resultadoTitulo: { fontSize: 14, color: '#555' },
+  resultadoValor: { fontSize: 22, fontWeight: '700' },
+  error: { color: '#b3261e', fontWeight: '600' },
+  nota: { fontSize: 12, color: '#777' },
+  seccion: { fontSize: 16, fontWeight: '700', marginTop: 8 },
+  fila: { flexDirection: 'row', gap: 12 },
+  campo: { flex: 1, gap: 4 },
+  etiqueta: { fontSize: 13, color: '#555' },
+  // fontSize 16: evita que Safari en iPhone haga zoom al tocar el campo
+  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, fontSize: 16, backgroundColor: '#fff' },
+  segmentos: { flexDirection: 'row', backgroundColor: '#eee', borderRadius: 10, padding: 3 },
+  segmento: { flex: 1, paddingVertical: 9, borderRadius: 8, alignItems: 'center' },
+  segmentoActivo: { backgroundColor: '#fff' },
+  segmentoTexto: { color: '#555' },
+  segmentoTextoActivo: { color: '#111', fontWeight: '700' },
 });
